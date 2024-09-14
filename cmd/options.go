@@ -74,6 +74,12 @@ func optionFlagSet() *pflag.FlagSet {
 		"Milliseconds are assumed if no unit is provided.\n"+
 		"Possible select values to return a single IP are: 'first', 'random' or 'roundRobin'.\n"+
 		"Possible policy values are: 'preferIPv4', 'preferIPv6', 'onlyIPv4', 'onlyIPv6' or 'any'.\n")
+
+	flags.String("redis-address", "localhost:6379", "cache redis address")
+	flags.String("name", "k6-default", "k6 test name")
+	flags.Bool("input", false, "k6 redis input")
+	flags.Bool("output", false, "k6 redis output")
+
 	return flags
 }
 
@@ -99,6 +105,10 @@ func getOptions(flags *pflag.FlagSet) (lib.Options, error) {
 		Throw:                   getNullBool(flags, "throw"),
 		DiscardResponseBodies:   getNullBool(flags, "discard-response-bodies"),
 		MetricSamplesBufferSize: null.NewInt(1000, false),
+		RedisAddress:            getNullString(flags, "redis-address"),
+		Name:                    getNullString(flags, "name"),
+		Input:                   getNullBool(flags, "input"),
+		Output:                  getNullBool(flags, "output"),
 	}
 
 	// Using Changed() because GetStringSlice() doesn't differentiate between empty and no value

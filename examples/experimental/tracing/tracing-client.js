@@ -1,5 +1,5 @@
 import http from "k6/http";
-import { check } from "k6";
+import {check} from "k6";
 import tracing from "k6/experimental/tracing";
 
 // Explicitly instantiating a tracing client allows to distringuish
@@ -11,7 +11,7 @@ let instrumentedHTTP = new tracing.Client({
 	propagator: "w3c",
 });
 
-const testData = { name: "Bert" };
+const testData = {name: "Bert"};
 
 export default () => {
 	// Using the tracing client instance, HTTP calls will have
@@ -31,14 +31,17 @@ export default () => {
 	// one can still perform non-instrumented HTTP calls
 	// using it.
 	res = http.post("http://httpbin.org/post", JSON.stringify(testData), {
-		headers: { "X-Example-Header": "noninstrumented/post" },
+		headers: {"X-Example-Header": "noninstrumented/post"},
 	});
 	check(res, {
 		"status is 200": (r) => r.status === 200,
 	});
 
 	res = instrumentedHTTP.del("http://httpbin.org/delete", null, {
-		headers: { "X-Example-Header": "instrumented/delete" },
+		headers: {
+			"X-Example-Header": "instrumented/delete",
+			"heheh": "hahah"
+		},
 	});
 	check(res, {
 		"status is 200": (r) => r.status === 200,

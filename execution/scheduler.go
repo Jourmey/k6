@@ -20,7 +20,7 @@ import (
 // executors, running setup() and teardown(), and actually starting the
 // executors for the different scenarios at the appropriate times.
 type Scheduler struct {
-	initProgress    *pb.ProgressBar
+	initProgress    *pb.ProgressBar      // 进度条
 	executorConfigs []lib.ExecutorConfig // sorted by (startTime, ID)
 	executors       []lib.Executor       // sorted by (startTime, ID), excludes executors with no work
 	executionPlan   []lib.ExecutionStep
@@ -454,6 +454,17 @@ func (e *Scheduler) Run(globalCtx, runCtx context.Context, samplesOut chan<- met
 			return err
 		}
 	}
+
+	// 增加上下文数据缓存
+	if e.state.Test.Options.RedisAddress.Valid &&
+		(e.state.Test.Options.Input.Valid || e.state.Test.Options.Output.Valid) { // 开启缓存
+		if err := e.state.Test.Runner.SetCache(runCtx, e.state.Test.Options.RedisAddress.String, e.state.Test.Options.Name.String,
+			e.state.Test.Options.Input.Bool, e.state.Test.Options.Output.Bool); err != nil {
+			logger.WithField("error", err).Debug("SetCache() aborted by error")
+			return err
+		}
+	}
+
 	e.initProgress.Modify(pb.WithHijack(e.getRunStats))
 
 	// Start all executors at their particular startTime in a separate goroutine...

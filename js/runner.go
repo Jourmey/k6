@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log"
 	"net"
 	"net/http"
 	"net/http/cookiejar"
@@ -17,6 +18,7 @@ import (
 	"time"
 
 	"github.com/dop251/goja"
+	red "github.com/go-redis/redis/v8"
 	"github.com/sirupsen/logrus"
 	"golang.org/x/net/http2"
 	"golang.org/x/time/rate"
@@ -57,9 +59,13 @@ type Runner struct {
 	RPSLimit       *rate.Limiter
 	RunTags        *metrics.TagSet
 
-	console    *console
-	setupData  []byte
-	BufferPool *lib.BufferPool
+	console     *console
+	setupData   []byte
+	BufferPool  *lib.BufferPool
+	name        string
+	cacheClient *red.Client // todo: 数据上下文存储器
+	useOutput   bool        // 是否输出为文件
+	useInput    bool        // 是否使用输入
 }
 
 // New returns a new Runner for the provided source
@@ -620,8 +626,8 @@ type VU struct {
 	Dialer    *netext.Dialer
 	CookieJar *cookiejar.Jar
 	TLSConfig *tls.Config
-	ID        uint64 // local to the current instance
-	IDGlobal  uint64 // global across all instances
+	ID        uint64 // local to the current instance 唯一用户 [1,-u]
+	IDGlobal  uint64 // global across all instances ID * iteration [1,-u]
 	iteration int64
 
 	Console    *console
@@ -629,7 +635,7 @@ type VU struct {
 
 	Samples chan<- metrics.SampleContainer
 
-	setupData goja.Value
+	setupData goja.Value // 单个用户对应的上下文
 
 	state *lib.State
 	// count of iterations executed by this VU in each scenario
@@ -749,6 +755,10 @@ func (u *ActiveVU) RunOnce() error {
 		<-u.busy // unlock deactivation again
 	}()
 
+	var (
+		cacheIndex = int64(u.IDGlobal) - 1
+	)
+
 	// Unmarshall the setupData only the first time for each VU so that VUs are isolated but we
 	// still don't use too much CPU in the middle test
 	if u.setupData == nil {
@@ -758,6 +768,21 @@ func (u *ActiveVU) RunOnce() error {
 				return fmt.Errorf("error unmarshaling setup data for the iteration from JSON: %w", err)
 			}
 			u.setupData = u.Runtime.ToValue(data)
+
+		} else if u.Runner.cacheClient != nil && u.Runner.useInput { // 上下文缓存
+
+			d, err := u.Runner.cacheClient.LIndex(u.RunContext, u.Runner.name, cacheIndex).Bytes()
+			if err != nil {
+				return fmt.Errorf("cache get failed,name:%s,err:%s", u.Runner.name, err.Error())
+			}
+			var data interface{}
+			if err := json.Unmarshal(d, &data); err != nil {
+				return fmt.Errorf("cache unmarshaling error setup data for the iteration from JSON: %w", err)
+			}
+			u.setupData = u.Runtime.ToValue(data)
+
+			log.Printf("iteration:%d ID:%d IDGlobal %d index cache success.", u.iteration, u.ID, u.IDGlobal)
+
 		} else {
 			u.setupData = goja.Undefined()
 		}
@@ -787,7 +812,7 @@ func (u *ActiveVU) RunOnce() error {
 	u.emitAndWaitEvent(&event.Event{Type: event.IterStart, Data: eventIterData})
 
 	// Call the exported function.
-	_, isFullIteration, totalTime, err := u.runFn(ctx, true, fn, cancel, u.setupData)
+	resultData, isFullIteration, totalTime, err := u.runFn(ctx, true, fn, cancel, u.setupData)
 	if err != nil {
 		var x *goja.InterruptedError
 		if errors.As(err, &x) {
@@ -798,6 +823,31 @@ func (u *ActiveVU) RunOnce() error {
 		}
 		eventIterData.Error = err
 	}
+
+	if resultData != nil && u.Runner.cacheClient != nil && u.Runner.useOutput { // 写入缓存
+
+		data, err := json.Marshal(resultData.Export())
+		if err != nil {
+			return fmt.Errorf("cache json.Marshal failed,name:%s, value:%s, err:%s", u.Runner.name, string(data), err.Error())
+		}
+
+		var (
+			d         interface{}
+			outputErr error
+		)
+
+		if u.Runner.useInput { // 有输入就是set
+			d, outputErr = u.Runner.cacheClient.LSet(u.RunContext, u.Runner.name, cacheIndex, data).Result()
+		} else { // 没有输入就是insert
+			d, outputErr = u.Runner.cacheClient.LPush(u.RunContext, u.Runner.name, data).Result()
+		}
+
+		if outputErr != nil {
+			return fmt.Errorf("cache set failed,name:%s, value:%s, err:%s", u.Runner.name, d, outputErr.Error())
+		}
+	}
+
+	//log.Printf("iteration:%d ID:%d IDGlobal %d exec resultData.String:%v", u.iteration, u.ID, u.IDGlobal, resultData.Export())
 
 	u.emitAndWaitEvent(&event.Event{Type: event.IterEnd, Data: eventIterData})
 
@@ -940,4 +990,38 @@ func (s *scriptExceptionError) AbortReason() errext.AbortReason {
 
 func (s *scriptExceptionError) ExitCode() exitcodes.ExitCode {
 	return exitcodes.ScriptException
+}
+
+func (r *Runner) SetCache(ctx context.Context, addr string, key string, useInput bool, useOutput bool) error {
+
+	if !useInput && !useOutput { // 未开启
+		return nil
+	}
+
+	op := &red.Options{Addr: addr}
+
+	addrs := strings.Split(addr, "@")
+	if len(addrs) == 2 {
+		op = &red.Options{
+			Password: addrs[0],
+			Addr:     addrs[1],
+		}
+	}
+
+	client := red.NewClient(op)
+
+	v, err := client.Ping(ctx).Result()
+	if err != nil {
+		return err
+	}
+
+	if v != "PONG" {
+		return fmt.Errorf("ping failed, result:%s", v)
+	}
+
+	r.cacheClient = client
+	r.name = key
+	r.useInput = useInput
+	r.useOutput = useOutput
+	return nil
 }

@@ -105,3 +105,7 @@ To get help, report bugs, suggest features, and discuss k6 with others, refer to
 
 k6 is distributed under the [AGPL-3.0 license](https://github.com/grafana/k6/blob/master/LICENSE.md).
 
+
+
+## 本地调试
+./k6 run examples/http_get.js

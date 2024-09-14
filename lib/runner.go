@@ -87,6 +87,9 @@ type Runner interface {
 	IsExecutable(string) bool
 
 	HandleSummary(context.Context, *Summary) (map[string]io.Reader, error)
+
+	// 设置上下文Cache
+	SetCache(ctx context.Context, addr string, key string, useInput bool, useOutput bool) error
 }
 
 // UIState describes the state of the UI, which might influence what
