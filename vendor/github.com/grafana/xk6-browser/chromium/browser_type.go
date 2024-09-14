@@ -12,18 +12,14 @@ import (
 	"strings"
 	"time"
 
-	"github.com/grafana/xk6-browser/api"
 	"github.com/grafana/xk6-browser/common"
 	"github.com/grafana/xk6-browser/env"
 	"github.com/grafana/xk6-browser/k6ext"
 	"github.com/grafana/xk6-browser/log"
 	"github.com/grafana/xk6-browser/storage"
 
-	k6common "go.k6.io/k6/js/common"
 	k6modules "go.k6.io/k6/js/modules"
 	k6lib "go.k6.io/k6/lib"
-
-	"github.com/dop251/goja"
 )
 
 // BrowserType provides methods to launch a Chrome browser instance or connect to an existing one.
@@ -35,13 +31,12 @@ type BrowserType struct {
 	vu           k6modules.VU
 	hooks        *common.Hooks
 	k6Metrics    *k6ext.CustomMetrics
-	execPath     string // path to the Chromium executable
 	randSrc      *rand.Rand
 	envLookupper env.LookupFunc
 }
 
 // NewBrowserType registers our custom k6 metrics, creates method mappings on
-// the goja runtime, and returns a new Chrome browser type.
+// the sobek runtime, and returns a new Chrome browser type.
 func NewBrowserType(vu k6modules.VU) *BrowserType {
 	// NOTE: vu.InitEnv() *must* be called from the script init scope,
 	// otherwise it will return nil.
@@ -98,13 +93,23 @@ func (b *BrowserType) initContext(ctx context.Context) context.Context {
 }
 
 // Connect attaches k6 browser to an existing browser instance.
-func (b *BrowserType) Connect(ctx context.Context, wsEndpoint string) (api.Browser, error) {
-	ctx, browserOpts, logger, err := b.init(ctx, true)
+//
+// vuCtx is the context coming from the VU itself. The k6 vu/iteration controls
+// its lifecycle.
+//
+// context.background() is used when connecting to an instance of chromium. The
+// connection lifecycle should be handled by the k6 event system.
+//
+// The separation is important to allow for the iteration to end when k6 requires
+// the iteration to end (e.g. during a SIGTERM) and unblocks k6 to then fire off
+// the events which allows the connection to close.
+func (b *BrowserType) Connect(vuCtx context.Context, wsEndpoint string) (*common.Browser, error) {
+	vuCtx, browserOpts, logger, err := b.init(vuCtx, true)
 	if err != nil {
 		return nil, fmt.Errorf("initializing browser type: %w", err)
 	}
 
-	bp, err := b.connect(ctx, wsEndpoint, browserOpts, logger)
+	bp, err := b.connect(vuCtx, wsEndpoint, browserOpts, logger)
 	if err != nil {
 		err = &k6ext.UserFriendlyError{
 			Err:     err,
@@ -117,16 +122,16 @@ func (b *BrowserType) Connect(ctx context.Context, wsEndpoint string) (api.Brows
 }
 
 func (b *BrowserType) connect(
-	ctx context.Context, wsURL string, opts *common.BrowserOptions, logger *log.Logger,
+	vuCtx context.Context, wsURL string, opts *common.BrowserOptions, logger *log.Logger,
 ) (*common.Browser, error) {
-	browserProc, err := b.link(ctx, wsURL, logger)
+	browserProc, err := b.link(wsURL, logger)
 	if browserProc == nil {
 		return nil, fmt.Errorf("connecting to browser: %w", err)
 	}
 
 	// If this context is cancelled we'll initiate an extension wide
 	// cancellation and shutdown.
-	browserCtx, browserCtxCancel := context.WithCancel(ctx)
+	browserCtx, browserCtxCancel := context.WithCancel(vuCtx)
 	b.Ctx = browserCtx
 	browser, err := common.NewBrowser(
 		browserCtx, browserCtxCancel, browserProc, opts, logger,
@@ -139,9 +144,9 @@ func (b *BrowserType) connect(
 }
 
 func (b *BrowserType) link(
-	ctx context.Context, wsURL string, logger *log.Logger,
+	wsURL string, logger *log.Logger,
 ) (*common.BrowserProcess, error) {
-	bProcCtx, bProcCtxCancel := context.WithCancel(ctx)
+	bProcCtx, bProcCtxCancel := context.WithCancel(context.Background())
 	p, err := common.NewRemoteBrowserProcess(bProcCtx, wsURL, bProcCtxCancel, logger)
 	if err != nil {
 		bProcCtxCancel()
@@ -151,15 +156,25 @@ func (b *BrowserType) link(
 	return p, nil
 }
 
-// Launch allocates a new Chrome browser process and returns a new api.Browser value,
+// Launch allocates a new Chrome browser process and returns a new Browser value,
 // which can be used for controlling the Chrome browser.
-func (b *BrowserType) Launch(ctx context.Context) (_ api.Browser, browserProcessID int, _ error) {
-	ctx, browserOpts, logger, err := b.init(ctx, false)
+//
+// vuCtx is the context coming from the VU itself. The k6 vu/iteration controls
+// its lifecycle.
+//
+// context.background() is used when launching an instance of chromium. The
+// chromium lifecycle should be handled by the k6 event system.
+//
+// The separation is important to allow for the iteration to end when k6 requires
+// the iteration to end (e.g. during a SIGTERM) and unblocks k6 to then fire off
+// the events which allows the chromium subprocess to shutdown.
+func (b *BrowserType) Launch(vuCtx context.Context) (_ *common.Browser, browserProcessID int, _ error) {
+	vuCtx, browserOpts, logger, err := b.init(vuCtx, false)
 	if err != nil {
 		return nil, 0, fmt.Errorf("initializing browser type: %w", err)
 	}
 
-	bp, pid, err := b.launch(ctx, browserOpts, logger)
+	bp, pid, err := b.launch(vuCtx, browserOpts, logger)
 	if err != nil {
 		err = &k6ext.UserFriendlyError{
 			Err:     err,
@@ -172,7 +187,7 @@ func (b *BrowserType) Launch(ctx context.Context) (_ api.Browser, browserProcess
 }
 
 func (b *BrowserType) launch(
-	ctx context.Context, opts *common.BrowserOptions, logger *log.Logger,
+	vuCtx context.Context, opts *common.BrowserOptions, logger *log.Logger,
 ) (_ *common.Browser, pid int, _ error) {
 	flags, err := prepareFlags(opts, &(b.vu.State()).Options)
 	if err != nil {
@@ -185,14 +200,19 @@ func (b *BrowserType) launch(
 	}
 	flags["user-data-dir"] = dataDir.Dir
 
-	browserProc, err := b.allocate(ctx, opts, flags, dataDir, logger)
+	path, err := executablePath(opts.ExecutablePath, b.envLookupper, exec.LookPath)
+	if err != nil {
+		return nil, 0, fmt.Errorf("finding browser executable: %w", err)
+	}
+
+	browserProc, err := b.allocate(path, flags, dataDir, logger)
 	if browserProc == nil {
 		return nil, 0, fmt.Errorf("launching browser: %w", err)
 	}
 
 	// If this context is cancelled we'll initiate an extension wide
 	// cancellation and shutdown.
-	browserCtx, browserCtxCancel := context.WithCancel(ctx)
+	browserCtx, browserCtxCancel := context.WithCancel(vuCtx)
 	b.Ctx = browserCtx
 	browser, err := common.NewBrowser(browserCtx, browserCtxCancel,
 		browserProc, opts, logger)
@@ -211,13 +231,6 @@ func (b *BrowserType) tmpdir() string {
 	return dir
 }
 
-// LaunchPersistentContext launches the browser with persistent storage.
-func (b *BrowserType) LaunchPersistentContext(userDataDir string, opts goja.Value) api.Browser {
-	rt := b.vu.Runtime()
-	k6common.Throw(rt, errors.New("BrowserType.LaunchPersistentContext(userDataDir, opts) has not been implemented yet"))
-	return nil
-}
-
 // Name returns the name of this browser type.
 func (b *BrowserType) Name() string {
 	return "chromium"
@@ -225,11 +238,11 @@ func (b *BrowserType) Name() string {
 
 // allocate starts a new Chromium browser process and returns it.
 func (b *BrowserType) allocate(
-	ctx context.Context, opts *common.BrowserOptions,
+	path string,
 	flags map[string]any, dataDir *storage.Dir,
 	logger *log.Logger,
 ) (_ *common.BrowserProcess, rerr error) {
-	bProcCtx, bProcCtxCancel := context.WithCancel(ctx)
+	bProcCtx, bProcCtxCancel := context.WithCancel(context.Background())
 	defer func() {
 		if rerr != nil {
 			bProcCtxCancel()
@@ -241,23 +254,36 @@ func (b *BrowserType) allocate(
 		return nil, err
 	}
 
-	path := opts.ExecutablePath
-	if path == "" {
-		path = b.ExecutablePath()
-	}
-
 	return common.NewLocalBrowserProcess(bProcCtx, path, args, dataDir, bProcCtxCancel, logger) //nolint: wrapcheck
 }
 
-// ExecutablePath returns the path where the extension expects to find the browser executable.
-func (b *BrowserType) ExecutablePath() (execPath string) {
-	if b.execPath != "" {
-		return b.execPath
-	}
-	defer func() {
-		b.execPath = execPath
-	}()
+var (
+	// ErrChromeNotInstalled is returned when the Chrome executable is not found.
+	ErrChromeNotInstalled = errors.New(
+		"k6 couldn't detect google chrome or a chromium-supported browser on this system",
+	)
 
+	// ErrChromeNotFoundAtPath is returned when the Chrome executable is not found at the given path.
+	ErrChromeNotFoundAtPath = errors.New(
+		"k6 couldn't detect google chrome or a chromium-supported browser on the given path",
+	)
+)
+
+// executablePath returns the path where the extension expects to find the browser executable.
+func executablePath(
+	path string,
+	env env.LookupFunc,
+	lookPath func(file string) (string, error), // os.LookPath
+) (string, error) {
+	// find the browser executable in the user provided path
+	if path := strings.TrimSpace(path); path != "" {
+		if _, err := lookPath(path); err == nil {
+			return path, nil
+		}
+		return "", fmt.Errorf("%w: %s", ErrChromeNotFoundAtPath, path)
+	}
+
+	// find the browser executable in the default paths below
 	paths := []string{
 		// Unix-like
 		"headless_shell",
@@ -278,16 +304,17 @@ func (b *BrowserType) ExecutablePath() (execPath string) {
 		"/Applications/Google Chrome.app/Contents/MacOS/Google Chrome",
 		"/Applications/Chromium.app/Contents/MacOS/Chromium",
 	}
-	if userProfile, ok := b.envLookupper("USERPROFILE"); ok {
+	// find the browser executable in the user profile
+	if userProfile, ok := env("USERPROFILE"); ok {
 		paths = append(paths, filepath.Join(userProfile, `AppData\Local\Google\Chrome\Application\chrome.exe`))
 	}
 	for _, path := range paths {
-		if _, err := exec.LookPath(path); err == nil {
-			return path
+		if _, err := lookPath(path); err == nil {
+			return path, nil
 		}
 	}
 
-	return ""
+	return "", ErrChromeNotInstalled
 }
 
 // parseArgs parses command-line arguments and returns them.
@@ -297,7 +324,7 @@ func parseArgs(flags map[string]any) ([]string, error) {
 	for name, value := range flags {
 		switch value := value.(type) {
 		case string:
-			args = append(args, fmt.Sprintf("--%s=%s", name, value))
+			args = append(args, parseStringArg(name, value))
 		case bool:
 			if value {
 				args = append(args, fmt.Sprintf("--%s", name))
@@ -315,6 +342,15 @@ func parseArgs(flags map[string]any) ([]string, error) {
 	// args = append(args, common.BlankPage)
 	// args = append(args, "--no-startup-window")
 	return args, nil
+}
+
+func parseStringArg(flag string, value string) string {
+	if strings.TrimSpace(value) == "" {
+		// If the value is empty, we don't include it in the args list.
+		// Otherwise, it will produce "--name=" which is invalid.
+		return fmt.Sprintf("--%s", flag)
+	}
+	return fmt.Sprintf("--%s=%s", flag, value)
 }
 
 func prepareFlags(lopts *common.BrowserOptions, k6opts *k6lib.Options) (map[string]any, error) {

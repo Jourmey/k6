@@ -22,11 +22,9 @@ defaults:
 
 env:
   APP_NAME: "k6"
-  # We'll push to two DockerHub repos at once; `loadimpact/k6` repo is required for backwards compatibility
-  LI_DOCKER_IMAGE_ID: "loadimpact/k6"
   DOCKER_IMAGE_ID: "grafana/k6"
   GHCR_IMAGE_ID: ${{ github.repository }}
-  DEFAULT_GO_VERSION: "1.21.x"
+  DEFAULT_GO_VERSION: "1.23.x"
 
 jobs:
   configure:
@@ -36,7 +34,7 @@ jobs:
       go_version: ${{ steps.get_go_version.outputs.go_version }}
     steps:
       - name: Checkout code
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
         with:
           fetch-depth: 0
       - name: Get the k6 version
@@ -76,11 +74,11 @@ jobs:
       VERSION: ${{ needs.configure.outputs.k6_version }}
     steps:
       - name: Checkout code
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
         with:
           fetch-depth: 0
       - name: Install Go
-        uses: actions/setup-go@v3
+        uses: actions/setup-go@v5
         with:
           go-version: ${{ needs.configure.outputs.go_version }}
           check-latest: true
@@ -123,7 +121,7 @@ jobs:
           go version
           ./build-release.sh "dist" "${VERSION}"
       - name: Upload artifacts
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: binaries
           path: dist/
@@ -136,7 +134,7 @@ jobs:
       VERSION: ${{ needs.configure.outputs.k6_version }}
     steps:
       - name: Checkout code
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
         with:
           fetch-depth: 0
       - name: Build
@@ -185,11 +183,6 @@ jobs:
             --platform linux/amd64,linux/arm64 \
             -t $DOCKER_IMAGE_ID:master-with-browser \
             -t ghcr.io/$GHCR_IMAGE_ID:master-with-browser .
-          # LoadImpact images are deprecated, we don't build arm64 for it.
-          docker buildx build --push \
-            --target legacy \
-            --platform linux/amd64 \
-            -t $LI_DOCKER_IMAGE_ID:master .
       - name: Publish tagged version images
         if: ${{ startsWith(github.ref, 'refs/tags/v') }}
         run: |
@@ -205,11 +198,6 @@ jobs:
             --platform linux/amd64,linux/arm64 \
             -t $DOCKER_IMAGE_ID:$VERSION-with-browser \
             -t ghcr.io/$GHCR_IMAGE_ID:$VERSION-with-browser .
-          # LoadImpact images are deprecated, we don't build arm64 for it.
-          docker buildx build --push \
-            --target legacy \
-            --platform linux/amd64 \
-            -t $LI_DOCKER_IMAGE_ID:$VERSION .
           # We also want to tag the latest stable version as latest
           if [[ ! "$VERSION" =~ (RC|rc) ]]; then
             echo "Publish $GHCR_IMAGE_ID:latest"
@@ -223,11 +211,6 @@ jobs:
               --platform linux/amd64,linux/arm64 \
               -t $DOCKER_IMAGE_ID:latest-with-browser \
               -t ghcr.io/$GHCR_IMAGE_ID:latest-with-browser .
-            # LoadImpact images are deprecated, we don't build arm64 for it.
-            docker buildx build --push \
-              --target legacy \
-              --platform linux/amd64 \
-              -t $LI_DOCKER_IMAGE_ID:latest .
           fi
 
   package-windows:
@@ -240,9 +223,9 @@ jobs:
       VERSION: ${{ needs.configure.outputs.k6_version }}
     steps:
       - name: Checkout code
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
       - name: Install pandoc
-        uses: crazy-max/ghaction-chocolatey@90deb87d9fbf0bb2f022b91e3bf11b4441cddda5 # v2.1.0
+        uses: crazy-max/ghaction-chocolatey@0e015857dd851f84fcb7fb53380eb5c4c8202333 # v3.0.0
         with:
           args: install -y pandoc
       - name: Install wix tools
@@ -251,7 +234,7 @@ jobs:
           Expand-Archive -Path .\wix311-binaries.zip -DestinationPath .\wix311\
           echo "$pwd\wix311" | Out-File -FilePath $env:GITHUB_PATH -Append
       - name: Download binaries
-        uses: actions/download-artifact@v3
+        uses: actions/download-artifact@v4
         with:
           name: binaries
           path: dist
@@ -297,31 +280,12 @@ jobs:
         run: move "packaging\k6.msi" "packaging\k6-$env:VERSION-windows-amd64.msi"
 
       - name: Upload artifacts
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: binaries-windows
           path: |
             packaging/k6-*.msi
           retention-days: 7
-
-  # Disabled until #1997 and #1998 are addressed.
-  # publish-macos:
-  #   runs-on: macos-latest
-  #   needs: [configure, build]
-  #   if: ${{ startsWith(github.ref, 'refs/tags/v') && github.event_name != 'workflow_dispatch' }}
-  #   env:
-  #     VERSION: ${{ needs.configure.outputs.k6_version }}
-  #     HOMEBREW_GITHUB_API_TOKEN: ${{ secrets.HOMEBREW_GITHUB_API_TOKEN }}
-  #   steps:
-  #     - name: Download source code archive
-  #       run: curl -fsSL "${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/archive/${VERSION}.tar.gz" -o "${VERSION}.tar.gz"
-  #     - name: Set up Homebrew
-  #       uses: Homebrew/actions/setup-homebrew@2eb78889a50ba021d744837934f1af2d8c4458ec
-  #     - name: Create version bump PR
-  #       run: |
-  #         brew bump-formula-pr k6 \
-  #           --url="${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/archive/${VERSION}.tar.gz" \
-  #           --sha256="$(shasum -a 256 ${VERSION}.tar.gz | cut -d' ' -f1)"
 
   publish-github:
     runs-on: ubuntu-latest
@@ -331,14 +295,14 @@ jobs:
       VERSION: ${{ needs.configure.outputs.k6_version }}
     steps:
       - name: Checkout code
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
       - name: Download binaries
-        uses: actions/download-artifact@v3
+        uses: actions/download-artifact@v4
         with:
           name: binaries
           path: dist
       - name: Download Windows binaries
-        uses: actions/download-artifact@v3
+        uses: actions/download-artifact@v4
         with:
           name: binaries-windows
           path: dist
@@ -346,7 +310,7 @@ jobs:
         run: cd dist && sha256sum * > "k6-${VERSION}-checksums.txt"
       - name: Anchore SBOM Action
         continue-on-error: true
-        uses: anchore/sbom-action@v0.12.0
+        uses: anchore/sbom-action@9fece9e20048ca9590af301449208b2b8861333b # v0.15.9
         with:
           artifact-name: k6-${{ env.VERSION }}-spdx.json
           upload-release-assets: false
@@ -370,14 +334,14 @@ jobs:
       VERSION: ${{ needs.configure.outputs.k6_version }}
     steps:
       - name: Checkout code
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
       - name: Download binaries
-        uses: actions/download-artifact@v3
+        uses: actions/download-artifact@v4
         with:
           name: binaries
           path: dist
       - name: Download Windows binaries
-        uses: actions/download-artifact@v3
+        uses: actions/download-artifact@v4
         with:
           name: binaries-windows
           path: dist
@@ -387,7 +351,7 @@ jobs:
           mv "dist/k6-$VERSION-windows-amd64.msi" "dist/k6-$VERSION-amd64.msi"
           mv "dist/k6-$VERSION-linux-amd64.rpm" "dist/k6-$VERSION-amd64.rpm"
           mv "dist/k6-$VERSION-linux-amd64.deb" "dist/k6-$VERSION-amd64.deb"
-      - name: Setup docker-compose environment
+      - name: Setup docker compose environment
         run: |
           cat > packaging/.env <<EOF
           AWS_ACCESS_KEY_ID=${{ secrets.AWS_ACCESS_KEY_ID }}
@@ -401,5 +365,5 @@ jobs:
         run: |
           echo "${{ secrets.GITHUB_TOKEN }}" | docker login https://ghcr.io -u ${{ github.actor }} --password-stdin
           cd packaging
-          docker-compose pull packager
-          docker-compose run --rm packager
+          docker compose pull packager
+          docker compose run --rm packager

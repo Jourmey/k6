@@ -1,13 +1,20 @@
-// Package browser provides an entry point to the browser module.
+// Package browser is the browser module's entry point, and
+// initializer of various global types, and a translation layer
+// between sobek and the internal business logic.
+//
+// It initializes and drives the downstream components by passing
+// the necessary concrete dependencies.
 package browser
 
 import (
+	"context"
+	"io"
 	"log"
 	"net/http"
 	_ "net/http/pprof" //nolint:gosec
 	"sync"
 
-	"github.com/dop251/goja"
+	"github.com/grafana/sobek"
 
 	"github.com/grafana/xk6-browser/common"
 	"github.com/grafana/xk6-browser/env"
@@ -17,18 +24,29 @@ import (
 )
 
 type (
+	// filePersister is the type that all file persisters must implement. It's job is
+	// to persist a file somewhere, hiding the details of where and how from the caller.
+	filePersister interface {
+		Persist(ctx context.Context, path string, data io.Reader) (err error)
+	}
+
 	// RootModule is the global module instance that will create module
 	// instances for each VU.
 	RootModule struct {
 		PidRegistry    *pidRegistry
 		remoteRegistry *remoteRegistry
 		initOnce       *sync.Once
+		tracesMetadata map[string]string
+		filePersister  filePersister
+		testRunID      string
+		isSync         bool // remove later
 	}
 
 	// JSModule exposes the properties available to the JS script.
 	JSModule struct {
-		Browser *goja.Object
-		Devices map[string]common.Device
+		Browser         *sobek.Object
+		Devices         map[string]common.Device
+		NetworkProfiles map[string]common.NetworkProfile `js:"networkProfiles"`
 	}
 
 	// ModuleInstance represents an instance of the JS module.
@@ -50,6 +68,17 @@ func New() *RootModule {
 	}
 }
 
+// NewSync returns a pointer to a new RootModule instance that maps the
+// browser's business logic to the synchronous version of the module's
+// JS API.
+func NewSync() *RootModule {
+	return &RootModule{
+		PidRegistry: &pidRegistry{},
+		initOnce:    &sync.Once{},
+		isSync:      true,
+	}
+}
+
 // NewModuleInstance implements the k6modules.Module interface to return
 // a new instance for each VU.
 func (m *RootModule) NewModuleInstance(vu k6modules.VU) k6modules.Instance {
@@ -61,14 +90,31 @@ func (m *RootModule) NewModuleInstance(vu k6modules.VU) k6modules.Instance {
 	m.initOnce.Do(func() {
 		m.initialize(vu)
 	})
+
+	// decide whether to map the browser module to the async JS API or
+	// the sync one.
+	mapper := mapBrowserToSobek
+	if m.isSync {
+		mapper = syncMapBrowserToSobek
+	}
+
 	return &ModuleInstance{
 		mod: &JSModule{
-			Browser: mapBrowserToGoja(moduleVU{
-				VU:              vu,
-				pidRegistry:     m.PidRegistry,
-				browserRegistry: newBrowserRegistry(vu, m.remoteRegistry, m.PidRegistry),
+			Browser: mapper(moduleVU{
+				VU:          vu,
+				pidRegistry: m.PidRegistry,
+				browserRegistry: newBrowserRegistry(
+					vu,
+					m.remoteRegistry,
+					m.PidRegistry,
+					m.tracesMetadata,
+				),
+				taskQueueRegistry: newTaskQueueRegistry(vu),
+				filePersister:     m.filePersister,
+				testRunID:         m.testRunID,
 			}),
-			Devices: common.GetDevices(),
+			Devices:         common.GetDevices(),
+			NetworkProfiles: common.GetNetworkProfiles(),
 		},
 	}
 }
@@ -90,8 +136,19 @@ func (m *RootModule) initialize(vu k6modules.VU) {
 	if err != nil {
 		k6ext.Abort(vu.Context(), "failed to create remote registry: %v", err)
 	}
+	m.tracesMetadata, err = parseTracesMetadata(initEnv.LookupEnv)
+	if err != nil {
+		k6ext.Abort(vu.Context(), "parsing browser traces metadata: %v", err)
+	}
 	if _, ok := initEnv.LookupEnv(env.EnableProfiling); ok {
 		go startDebugServer()
+	}
+	m.filePersister, err = newScreenshotPersister(initEnv.LookupEnv)
+	if err != nil {
+		k6ext.Abort(vu.Context(), "failed to create file persister: %v", err)
+	}
+	if e, ok := initEnv.LookupEnv(env.K6TestRunID); ok && e != "" {
+		m.testRunID = e
 	}
 }
 

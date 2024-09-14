@@ -1,3 +1,4 @@
+// Package consts houses some constants needed across k6
 package consts
 
 import (
@@ -8,7 +9,7 @@ import (
 )
 
 // Version contains the current semantic version of k6.
-const Version = "0.47.0"
+const Version = "0.53.0"
 
 // FullVersion returns the maximally full version and build information for
 // the currently running k6 executable.
@@ -51,14 +52,14 @@ func FullVersion() string {
 	return fmt.Sprintf("%s (commit/%s, %s)", Version, commit, goVersionArch)
 }
 
-// Banner returns the ASCII-art banner with the k6 logo and stylized website URL
+// Banner returns the ASCII-art banner with the k6 logo
 func Banner() string {
 	banner := strings.Join([]string{
-		`          /\      |‾‾| /‾‾/   /‾‾/   `,
-		`     /\  /  \     |  |/  /   /  /    `,
-		`    /  \/    \    |     (   /   ‾‾\  `,
-		`   /          \   |  |\  \ |  (‾)  | `,
-		`  / __________ \  |__| \__\ \_____/ .io`,
+		`         /\      Grafana   /‾‾/  `,
+		`    /\  /  \     |\  __   /  /   `,
+		`   /  \/    \    | |/ /  /   ‾‾\ `,
+		`  /          \   |   (  |  (‾)  |`,
+		` / __________ \  |_|\_\  \_____/ `,
 	}, "\n")
 
 	return banner
