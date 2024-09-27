@@ -3,6 +3,7 @@ package js
 import (
 	"go.k6.io/k6/ext"
 	"go.k6.io/k6/js/modules/k6"
+	k6cache "go.k6.io/k6/js/modules/k6/cache"
 	"go.k6.io/k6/js/modules/k6/crypto"
 	"go.k6.io/k6/js/modules/k6/crypto/x509"
 	"go.k6.io/k6/js/modules/k6/data"
@@ -45,6 +46,7 @@ func getInternalJSModules() map[string]interface{} {
 		"k6/metrics":                 metrics.New(),
 		"k6/ws":                      ws.New(),
 		"k6/pomelo":                  pomelo.New(),
+		"k6/cache":                   k6cache.New(),
 	}
 }
 
