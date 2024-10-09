@@ -11,6 +11,7 @@ const (
 	Gauge                      // A gauge that displays the latest value
 	Trend                      // A trend, min/max/avg/med are interesting
 	Rate                       // A rate, displays % of values that aren't 0
+	//String
 )
 
 // ErrInvalidMetricType indicates the serialized metric type is invalid.

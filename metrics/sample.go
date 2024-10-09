@@ -22,8 +22,9 @@ type TimeSeries struct {
 //   - optional non-indexed Metadata that are meant for high-cardinality information
 type Sample struct {
 	TimeSeries
-	Time  time.Time
-	Value float64
+	Time        time.Time
+	Value       float64
+	ValueString string
 
 	// Optional high-cardinality metadata that won't be indexed in atlas.
 	//

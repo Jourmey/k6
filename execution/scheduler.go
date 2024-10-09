@@ -474,7 +474,8 @@ func (e *Scheduler) Run(globalCtx, runCtx context.Context, samplesOut chan<- met
 	executorsRunCtx, executorsRunCancel := context.WithCancel(withExecStateCtx)
 	defer executorsRunCancel()
 	for _, exec := range e.executors {
-		go e.runExecutor(executorsRunCtx, runResults, samplesOut, exec)
+		// TODO: DAG顺序执行
+		e.runExecutor(executorsRunCtx, runResults, samplesOut, exec)
 	}
 
 	// Wait for all executors to finish

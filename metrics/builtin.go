@@ -31,6 +31,7 @@ const (
 
 	DataSentName     = "data_sent"
 	DataReceivedName = "data_received"
+	OutputName       = "output"
 )
 
 // BuiltinMetrics represent all the builtin metrics of k6
@@ -70,6 +71,7 @@ type BuiltinMetrics struct {
 	// Network-related; used for future protocols as well.
 	DataSent     *Metric
 	DataReceived *Metric
+	Output       *Metric
 }
 
 // RegisterBuiltinMetrics register and returns the builtin metrics in the provided registry
@@ -105,5 +107,7 @@ func RegisterBuiltinMetrics(registry *Registry) *BuiltinMetrics {
 
 		DataSent:     registry.MustNewMetric(DataSentName, Counter, Data),
 		DataReceived: registry.MustNewMetric(DataReceivedName, Counter, Data),
+
+		Output: registry.MustNewMetric(OutputName, Counter, Data),
 	}
 }

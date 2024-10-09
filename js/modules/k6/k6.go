@@ -20,7 +20,8 @@ var (
 	ErrGroupInInitContext = common.NewInitContextError("Using group() in the init context is not supported")
 
 	// ErrCheckInInitContext is returned when check() are using in the init context.
-	ErrCheckInInitContext = common.NewInitContextError("Using check() in the init context is not supported")
+	ErrCheckInInitContext  = common.NewInitContextError("Using check() in the init context is not supported")
+	ErrOutputInInitContext = common.NewInitContextError("Using output() in the init context is not supported")
 )
 
 const asyncFunctionNotSupportedMsg = "%s() does not support async functions as arguments, " +
@@ -62,6 +63,7 @@ func (mi *K6) Exports() modules.Exports {
 			"group":      mi.Group,
 			"randomSeed": mi.RandomSeed,
 			"sleep":      mi.Sleep,
+			"output":     mi.Output,
 		},
 	}
 }
@@ -234,4 +236,40 @@ func (mi *K6) Check(arg0, checks goja.Value, extras ...goja.Value) (bool, error)
 	}
 
 	return succ, nil
+}
+
+func (mi *K6) Output(name string, value string) error {
+	state := mi.vu.State()
+	if state == nil {
+		return ErrOutputInInitContext
+	}
+
+	ctx := mi.vu.Context()
+	t := time.Now()
+
+	// Prepare the metric tags
+	commonTagsAndMeta := state.Tags.GetCurrentValues()
+
+	tags := commonTagsAndMeta.Tags
+	tags = tags.With("output", name)
+
+	// Emit! (But only if we have a valid context.)
+	select {
+	case <-ctx.Done():
+	default:
+		sample := metrics.Sample{
+			TimeSeries: metrics.TimeSeries{
+				Metric: state.BuiltinMetrics.Output,
+				Tags:   tags,
+			},
+			Time:        t,
+			Value:       1,
+			ValueString: value,
+			Metadata:    commonTagsAndMeta.Metadata,
+		}
+
+		metrics.PushIfNotDone(ctx, state.Samples, sample)
+	}
+
+	return nil
 }

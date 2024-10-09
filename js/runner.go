@@ -654,6 +654,7 @@ type ActiveVU struct {
 	*lib.VUActivationParams
 	busy chan struct{}
 
+	//data                      sync.Map //自定义用户上下文参数
 	scenarioName              string
 	getNextIterationCounters  func() (uint64, uint64)
 	scIterLocal, scIterGlobal uint64
@@ -714,9 +715,9 @@ func (u *VU) Activate(params *lib.VUActivationParams) lib.ActiveVU {
 		VUActivationParams:       params,
 		busy:                     make(chan struct{}, 1),
 		scenarioName:             params.Scenario,
+		getNextIterationCounters: params.GetNextIterationCounters,
 		scIterLocal:              ^uint64(0),
 		scIterGlobal:             ^uint64(0),
-		getNextIterationCounters: params.GetNextIterationCounters,
 	}
 
 	u.state.GetScenarioLocalVUIter = func() uint64 {
@@ -812,7 +813,7 @@ func (u *ActiveVU) RunOnce() error {
 	u.emitAndWaitEvent(&event.Event{Type: event.IterStart, Data: eventIterData})
 
 	// Call the exported function.
-	resultData, isFullIteration, totalTime, err := u.runFn(ctx, true, fn, cancel, u.setupData)
+	_, isFullIteration, totalTime, err := u.runFn(ctx, true, fn, cancel, u.setupData)
 	if err != nil {
 		var x *goja.InterruptedError
 		if errors.As(err, &x) {
@@ -824,28 +825,9 @@ func (u *ActiveVU) RunOnce() error {
 		eventIterData.Error = err
 	}
 
-	if resultData != nil && u.Runner.cacheClient != nil && u.Runner.useOutput { // 写入缓存
-
-		data, err := json.Marshal(resultData.Export())
-		if err != nil {
-			return fmt.Errorf("cache json.Marshal failed,name:%s, value:%s, err:%s", u.Runner.name, string(data), err.Error())
-		}
-
-		var (
-			d         interface{}
-			outputErr error
-		)
-
-		if u.Runner.useInput { // 有输入就是set
-			d, outputErr = u.Runner.cacheClient.LSet(u.RunContext, u.Runner.name, cacheIndex, data).Result()
-		} else { // 没有输入就是insert
-			d, outputErr = u.Runner.cacheClient.LPush(u.RunContext, u.Runner.name, data).Result()
-		}
-
-		if outputErr != nil {
-			return fmt.Errorf("cache set failed,name:%s, value:%s, err:%s", u.Runner.name, d, outputErr.Error())
-		}
-	}
+	//if resultData != nil { // 写入个人缓存
+	//u.data.Store(u.scenarioName, resultData)
+	//}
 
 	//log.Printf("iteration:%d ID:%d IDGlobal %d exec resultData.String:%v", u.iteration, u.ID, u.IDGlobal, resultData.Export())
 

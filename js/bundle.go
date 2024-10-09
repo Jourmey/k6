@@ -238,6 +238,7 @@ func (b *Bundle) Instantiate(ctx context.Context, vuID uint64) (*BundleInstance,
 			local:  event.NewEventSystem(100, b.preInitState.Logger),
 		},
 	}
+	//logrus.Info("vuImpl new", vuID)
 	vuImpl.eventLoop = eventloop.New(vuImpl)
 	exports, err := b.instantiate(vuImpl, vuID)
 	if err != nil {
