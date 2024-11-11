@@ -79,6 +79,7 @@ func optionFlagSet() *pflag.FlagSet {
 	flags.String("name", "k6-default", "k6 test name")
 	flags.Bool("input", false, "k6 redis input")
 	flags.Bool("output", false, "k6 redis output")
+	flags.Bool("dag", false, "k6 dag scenarios")
 
 	return flags
 }
@@ -109,6 +110,7 @@ func getOptions(flags *pflag.FlagSet) (lib.Options, error) {
 		Name:                    getNullString(flags, "name"),
 		Input:                   getNullBool(flags, "input"),
 		Output:                  getNullBool(flags, "output"),
+		Dag:                     getNullBool(flags, "dag"),
 	}
 
 	// Using Changed() because GetStringSlice() doesn't differentiate between empty and no value

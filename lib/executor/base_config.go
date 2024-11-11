@@ -32,6 +32,7 @@ type BaseConfig struct {
 	Exec         null.String          `json:"exec"` // function name, externally validated
 	Tags         map[string]string    `json:"tags"`
 	Options      *lib.ScenarioOptions `json:"options,omitempty"`
+	PreList      []string             `json:"preList"`
 
 	// TODO: future extensions like distribution, others?
 }
@@ -79,6 +80,10 @@ func (bc BaseConfig) GetName() string {
 // GetType returns the executor's type as a string ID.
 func (bc BaseConfig) GetType() string {
 	return bc.Type
+}
+
+func (bc BaseConfig) GetPreList() []string {
+	return bc.PreList
 }
 
 // GetStartTime returns the starting time, relative to the beginning of the

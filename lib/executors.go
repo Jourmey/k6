@@ -65,6 +65,8 @@ type ExecutorConfig interface {
 	GetStartTime() time.Duration
 	GetGracefulStop() time.Duration
 
+	GetPreList() []string
+
 	// This is used to validate whether a particular script can run in the cloud
 	// or, in the future, in the native k6 distributed execution. Currently only
 	// the externally-controlled executor should return false.
