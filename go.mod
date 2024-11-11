@@ -21,7 +21,22 @@ require (
 	github.com/grafana/xk6-redis v0.3.1
 	github.com/grafana/xk6-webcrypto v0.5.0
 	github.com/grafana/xk6-websockets v0.7.2
+	github.com/andybalholm/brotli v1.0.5
+	github.com/dop251/goja v0.0.0-20231024180952-594410467bc6
+	github.com/fatih/color v1.15.0
+	github.com/go-redis/redis/v8 v8.11.5
+	github.com/go-sourcemap/sourcemap v2.1.4-0.20211119122758-180fcef48034+incompatible
+	github.com/golang/protobuf v1.5.3
+	github.com/gorilla/websocket v1.5.0
+	github.com/grafana/xk6-browser v1.1.0
+	github.com/grafana/xk6-grpc v0.1.4-0.20230919144024-6ed5daf33509
+	github.com/grafana/xk6-output-prometheus-remote v0.3.1
+	github.com/grafana/xk6-redis v0.1.1
+	github.com/grafana/xk6-timers v0.1.2
+	github.com/grafana/xk6-webcrypto v0.1.0
+	github.com/grafana/xk6-websockets v0.2.1
 	github.com/grpc-ecosystem/go-grpc-middleware v1.4.0
+	github.com/heimdalr/dag v1.5.0
 	github.com/influxdata/influxdb1-client v0.0.0-20190402204710-8ff2fc3824fc
 	github.com/jhump/protoreflect v1.17.0
 	github.com/klauspost/compress v1.17.11
@@ -78,6 +93,11 @@ require (
 	github.com/google/uuid v1.6.0 // indirect
 	github.com/grafana/sobek v0.0.0-20241024150027-d91f02b05e9b
 	github.com/grpc-ecosystem/grpc-gateway/v2 v2.22.0 // indirect
+	github.com/dlclark/regexp2 v1.9.0 // indirect
+	github.com/emirpasic/gods v1.18.1 // indirect
+	github.com/fsnotify/fsnotify v1.5.4 // indirect
+	github.com/google/pprof v0.0.0-20230207041349-798e818bf904 // indirect
+	github.com/google/uuid v1.3.0 // indirect
 	github.com/inconshreveable/mousetrap v1.0.0 // indirect
 	github.com/josharian/intern v1.0.0 // indirect
 	github.com/matttproud/golang_protobuf_extensions v1.0.4 // indirect

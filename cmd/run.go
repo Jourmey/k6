@@ -100,6 +100,7 @@ func (c *cmdRun) run(cmd *cobra.Command, args []string) (err error) {
 		c.gs.Events.UnsubscribeAll()
 	}()
 
+	// 加载配置文件
 	test, controller, err := c.loadConfiguredTest(cmd, args)
 	if err != nil {
 		return err
@@ -132,6 +133,7 @@ func (c *cmdRun) run(cmd *cobra.Command, args []string) (err error) {
 
 	// Create a local execution scheduler wrapping the runner.
 	logger.Debug("Initializing the execution scheduler...")
+	// 创建调度器
 	execScheduler, err := execution.NewScheduler(testRunState, controller)
 	if err != nil {
 		return err

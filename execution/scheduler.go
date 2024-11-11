@@ -8,6 +8,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/heimdalr/dag"
 	"github.com/sirupsen/logrus"
 
 	"go.k6.io/k6/errext"
@@ -22,7 +23,7 @@ import (
 type Scheduler struct {
 	controller Controller
 
-	initProgress    *pb.ProgressBar
+	initProgress    *pb.ProgressBar      // 进度条
 	executorConfigs []lib.ExecutorConfig // sorted by (startTime, ID)
 	executors       []lib.Executor       // sorted by (startTime, ID), excludes executors with no work
 	executionPlan   []lib.ExecutionStep
@@ -496,8 +497,20 @@ func (e *Scheduler) Run(globalCtx, runCtx context.Context, samplesOut chan<- met
 
 	executorsRunCtx, executorsRunCancel := context.WithCancel(withExecStateCtx)
 	defer executorsRunCancel()
-	for _, exec := range e.executors {
-		go e.runExecutor(executorsRunCtx, runResults, samplesOut, exec)
+
+	if e.state.Test.Options.Dag.Valid { // k6 定制的场景前置执行器
+		// 各场景之间的运行
+		err := e.run(executorsRunCtx, runResults, samplesOut)
+		if err != nil {
+			return err
+		}
+
+	} else {
+
+		for _, exec := range e.executors {
+			// TODO: DAG顺序执行
+			go e.runExecutor(executorsRunCtx, runResults, samplesOut, exec)
+		}
 	}
 
 	// Wait for all executors to finish
@@ -588,4 +601,51 @@ func (e *Scheduler) SetPaused(pause bool) error {
 		return e.state.Pause()
 	}
 	return e.state.Resume()
+}
+
+func (e *Scheduler) run(executorsRunCtx context.Context, runResults chan error, samplesOut chan<- metrics.SampleContainer) error {
+
+	da := dag.NewDAG()
+	da.Options(dag.Options{
+		VertexHashFunc: func(v interface{}) interface{} {
+			return v.(lib.Executor).GetConfig().GetName()
+		}})
+
+	var (
+		startId string
+	)
+
+	for _, exec := range e.executors {
+		err := da.AddVertexByID(exec.GetConfig().GetName(), exec)
+		if err != nil {
+			return err
+		}
+		if len(exec.GetConfig().GetPreList()) == 0 {
+			startId = exec.GetConfig().GetName()
+		}
+	}
+	for _, exec := range e.executors {
+		for _, pre := range exec.GetConfig().GetPreList() {
+			err := da.AddEdge(pre, exec.GetConfig().GetName())
+			if err != nil {
+				return err
+			}
+		}
+	}
+
+	call := func(d *dag.DAG, id string, parentResults []dag.FlowResult) (interface{}, error) {
+
+		v, err := d.GetVertex(id)
+		if err == nil {
+
+			if exec, ok := v.(lib.Executor); ok {
+				e.runExecutor(executorsRunCtx, runResults, samplesOut, exec)
+			}
+		}
+
+		return nil, nil
+	}
+
+	_, err := da.DescendantsFlow(startId, nil, call)
+	return err
 }

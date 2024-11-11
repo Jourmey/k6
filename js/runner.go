@@ -604,8 +604,8 @@ type VU struct {
 	Dialer    *netext.Dialer
 	CookieJar *cookiejar.Jar
 	TLSConfig *tls.Config
-	ID        uint64 // local to the current instance
-	IDGlobal  uint64 // global across all instances
+	ID        uint64 // local to the current instance 唯一用户 [1,-u]
+	IDGlobal  uint64 // global across all instances ID * iteration [1,-u]
 	iteration int64
 
 	Console    *console
@@ -632,6 +632,7 @@ type ActiveVU struct {
 	*lib.VUActivationParams
 	busy chan struct{}
 
+	//data                      sync.Map //自定义用户上下文参数
 	scenarioName              string
 	getNextIterationCounters  func() (uint64, uint64)
 	scIterLocal, scIterGlobal uint64
@@ -692,9 +693,9 @@ func (u *VU) Activate(params *lib.VUActivationParams) lib.ActiveVU {
 		VUActivationParams:       params,
 		busy:                     make(chan struct{}, 1),
 		scenarioName:             params.Scenario,
+		getNextIterationCounters: params.GetNextIterationCounters,
 		scIterLocal:              ^uint64(0),
 		scIterGlobal:             ^uint64(0),
-		getNextIterationCounters: params.GetNextIterationCounters,
 	}
 
 	u.state.GetScenarioLocalVUIter = func() uint64 {
@@ -781,6 +782,12 @@ func (u *ActiveVU) RunOnce() error {
 		}
 		eventIterData.Error = err
 	}
+
+	//if resultData != nil { // 写入个人缓存
+	//u.data.Store(u.scenarioName, resultData)
+	//}
+
+	//log.Printf("iteration:%d ID:%d IDGlobal %d exec resultData.String:%v", u.iteration, u.ID, u.IDGlobal, resultData.Export())
 
 	u.emitAndWaitEvent(&event.Event{Type: event.IterEnd, Data: eventIterData})
 
@@ -950,4 +957,8 @@ func (s *scriptExceptionError) AbortReason() errext.AbortReason {
 
 func (s *scriptExceptionError) ExitCode() exitcodes.ExitCode {
 	return exitcodes.ScriptException
+}
+
+func (r *Runner) SetCache(ctx context.Context, addr string, key string, useInput bool, useOutput bool) error {
+	return nil
 }

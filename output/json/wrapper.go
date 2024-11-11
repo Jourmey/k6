@@ -13,10 +13,11 @@ type sampleEnvelope struct {
 	Metric string `json:"metric"`
 	Type   string `json:"type"`
 	Data   struct {
-		Time     time.Time         `json:"time"`
-		Value    float64           `json:"value"`
-		Tags     *metrics.TagSet   `json:"tags"`
-		Metadata map[string]string `json:"metadata,omitempty"`
+		Time        time.Time         `json:"time"`
+		Value       float64           `json:"value"`
+		ValueString string            `json:"valueString"`
+		Tags        *metrics.TagSet   `json:"tags"`
+		Metadata    map[string]string `json:"metadata,omitempty"`
 	} `json:"data"`
 }
 
@@ -29,6 +30,7 @@ func wrapSample(sample metrics.Sample) sampleEnvelope {
 	}
 	s.Data.Time = sample.Time
 	s.Data.Value = sample.Value
+	s.Data.ValueString = sample.ValueString
 	s.Data.Tags = sample.Tags
 	s.Data.Metadata = sample.Metadata
 	return s

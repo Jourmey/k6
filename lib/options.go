@@ -343,6 +343,15 @@ type Options struct {
 
 	// Specify client IP ranges and/or CIDR from which VUs will make requests
 	LocalIPs types.NullIPPool `json:"-" envconfig:"K6_LOCAL_IPS"`
+
+	// 场景图结构
+	Dag null.Bool `json:"dag" envconfig:"K6_DAG"`
+
+	//redis 数据提取和注入
+	RedisAddress null.String `json:"redisAddress" envconfig:"K6_Redis_Address"`
+	Name         null.String `json:"name" envconfig:"K6_Name"`
+	Output       null.Bool   `json:"output" envconfig:"K6_Output"`
+	Input        null.Bool   `json:"input" envconfig:"K6_Input"`
 }
 
 // Apply returns the result of overwriting any fields with any that are set on the argument.
@@ -512,7 +521,21 @@ func (o Options) Apply(opts Options) Options {
 	if opts.DNS.Policy.Valid {
 		o.DNS.Policy = opts.DNS.Policy
 	}
-
+	if opts.RedisAddress.Valid {
+		o.RedisAddress = opts.RedisAddress
+	}
+	if opts.Name.Valid {
+		o.Name = opts.Name
+	}
+	if opts.Input.Valid {
+		o.Input = opts.Input
+	}
+	if opts.Output.Valid {
+		o.Output = opts.Output
+	}
+	if opts.Dag.Valid {
+		o.Dag = opts.Dag
+	}
 	return o
 }
 

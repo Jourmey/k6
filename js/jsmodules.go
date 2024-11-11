@@ -8,6 +8,7 @@ import (
 	"go.k6.io/k6/js/common"
 	"go.k6.io/k6/js/modules"
 	"go.k6.io/k6/js/modules/k6"
+	k6cache "go.k6.io/k6/js/modules/k6/cache"
 	"go.k6.io/k6/js/modules/k6/crypto"
 	"go.k6.io/k6/js/modules/k6/crypto/x509"
 	"go.k6.io/k6/js/modules/k6/data"
@@ -20,6 +21,7 @@ import (
 	"go.k6.io/k6/js/modules/k6/html"
 	"go.k6.io/k6/js/modules/k6/http"
 	"go.k6.io/k6/js/modules/k6/metrics"
+	"go.k6.io/k6/js/modules/k6/pomelo"
 	"go.k6.io/k6/js/modules/k6/timers"
 	"go.k6.io/k6/js/modules/k6/ws"
 
@@ -65,6 +67,8 @@ func getInternalJSModules() map[string]interface{} {
 			"k6/experimental/grpc has been graduated, please use k6/net/grpc instead." +
 				" See https://grafana.com/docs/k6/latest/javascript-api/k6-net-grpc/ for more information.",
 		),
+		"k6/pomelo": pomelo.New(),
+		"k6/cache":  k6cache.New(),
 	}
 }
 
