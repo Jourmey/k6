@@ -4,7 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"github.com/dop251/goja"
+	"github.com/grafana/sobek"
 	"go.k6.io/k6/js/modules"
 	"go.k6.io/k6/js/modules/k6/pomelo/pomelosdk"
 	"sync"
@@ -14,7 +14,7 @@ import (
 
 type Client struct {
 	vu  modules.VU
-	obj *goja.Object
+	obj *sobek.Object
 
 	// events handler
 	sync.RWMutex

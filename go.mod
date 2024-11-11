@@ -2,13 +2,12 @@ module go.k6.io/k6
 
 go 1.21
 
-toolchain go1.21.13
-
 require (
 	github.com/Azure/go-ntlmssp v0.0.0-20221128193559-754e69321358
 	github.com/PuerkitoBio/goquery v1.9.2
 	github.com/Soontao/goHttpDigestClient v0.0.0-20170320082612-6d28bb1415c5
 	github.com/andybalholm/brotli v1.1.1
+	github.com/dop251/goja v0.0.0-20240610225006-393f6d42497b
 	github.com/evanw/esbuild v0.21.2
 	github.com/fatih/color v1.18.0
 	github.com/go-sourcemap/sourcemap v2.1.4+incompatible
@@ -21,20 +20,6 @@ require (
 	github.com/grafana/xk6-redis v0.3.1
 	github.com/grafana/xk6-webcrypto v0.5.0
 	github.com/grafana/xk6-websockets v0.7.2
-	github.com/andybalholm/brotli v1.0.5
-	github.com/dop251/goja v0.0.0-20231024180952-594410467bc6
-	github.com/fatih/color v1.15.0
-	github.com/go-redis/redis/v8 v8.11.5
-	github.com/go-sourcemap/sourcemap v2.1.4-0.20211119122758-180fcef48034+incompatible
-	github.com/golang/protobuf v1.5.3
-	github.com/gorilla/websocket v1.5.0
-	github.com/grafana/xk6-browser v1.1.0
-	github.com/grafana/xk6-grpc v0.1.4-0.20230919144024-6ed5daf33509
-	github.com/grafana/xk6-output-prometheus-remote v0.3.1
-	github.com/grafana/xk6-redis v0.1.1
-	github.com/grafana/xk6-timers v0.1.2
-	github.com/grafana/xk6-webcrypto v0.1.0
-	github.com/grafana/xk6-websockets v0.2.1
 	github.com/grpc-ecosystem/go-grpc-middleware v1.4.0
 	github.com/heimdalr/dag v1.5.0
 	github.com/influxdata/influxdb1-client v0.0.0-20190402204710-8ff2fc3824fc
@@ -86,6 +71,7 @@ require (
 	github.com/davecgh/go-spew v1.1.1 // indirect
 	github.com/dgryski/go-rendezvous v0.0.0-20200823014737-9f7001d12a5f // indirect
 	github.com/dlclark/regexp2 v1.11.4 // indirect
+	github.com/emirpasic/gods v1.18.1 // indirect
 	github.com/fsnotify/fsnotify v1.5.4 // indirect
 	github.com/go-logr/logr v1.4.2 // indirect
 	github.com/go-logr/stdr v1.2.2 // indirect
@@ -93,11 +79,6 @@ require (
 	github.com/google/uuid v1.6.0 // indirect
 	github.com/grafana/sobek v0.0.0-20241024150027-d91f02b05e9b
 	github.com/grpc-ecosystem/grpc-gateway/v2 v2.22.0 // indirect
-	github.com/dlclark/regexp2 v1.9.0 // indirect
-	github.com/emirpasic/gods v1.18.1 // indirect
-	github.com/fsnotify/fsnotify v1.5.4 // indirect
-	github.com/google/pprof v0.0.0-20230207041349-798e818bf904 // indirect
-	github.com/google/uuid v1.3.0 // indirect
 	github.com/inconshreveable/mousetrap v1.0.0 // indirect
 	github.com/josharian/intern v1.0.0 // indirect
 	github.com/matttproud/golang_protobuf_extensions v1.0.4 // indirect

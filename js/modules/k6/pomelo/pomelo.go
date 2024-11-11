@@ -1,6 +1,9 @@
 package pomelo
 
 import (
+	"github.com/grafana/sobek"
+	"go.k6.io/k6/js/common"
+	"go.k6.io/k6/js/modules"
 	"go.k6.io/k6/js/modules/k6/pomelo/pomelosdk"
 	"go.k6.io/k6/lib"
 	"log"
@@ -9,10 +12,6 @@ import (
 	"sync"
 	"sync/atomic"
 	"time"
-
-	"github.com/dop251/goja"
-	"go.k6.io/k6/js/common"
-	"go.k6.io/k6/js/modules"
 )
 
 func init() {
@@ -24,7 +23,7 @@ type (
 
 	Instance struct {
 		vu  modules.VU
-		obj *goja.Object
+		obj *sobek.Object
 	}
 )
 
@@ -60,9 +59,9 @@ type ConnectArgs struct {
 }
 
 type ConnectResponse struct {
-	Status int          `json:"status"`
-	Client *goja.Object `json:"client"`
-	Error  string       `json:"error"`
+	Status int           `json:"status"`
+	Client *sobek.Object `json:"client"`
+	Error  string        `json:"error"`
 }
 
 // Exports returns the exports of the ws module.
@@ -70,7 +69,7 @@ func (mi *Instance) Exports() modules.Exports {
 	return modules.Exports{Default: mi.obj}
 }
 
-func (mi *Instance) Connect(args goja.Value) (response *ConnectResponse, err error) {
+func (mi *Instance) Connect(args sobek.Value) (response *ConnectResponse, err error) {
 	ctx := mi.vu.Context()
 	rt := mi.vu.Runtime()
 	state := mi.vu.State()
@@ -154,7 +153,7 @@ func (mi *Instance) Connect(args goja.Value) (response *ConnectResponse, err err
 }
 
 //nolint:gocognit
-func parseConnectArgs(state *lib.State, rt *goja.Runtime, args goja.Value) (res ConnectArgs, err error) {
+func parseConnectArgs(state *lib.State, rt *sobek.Runtime, args sobek.Value) (res ConnectArgs, err error) {
 
 	params := args.ToObject(rt)
 	for _, k := range params.Keys() {
